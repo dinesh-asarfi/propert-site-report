@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#3498db">
+    <meta name="description" content="Property Inspection Checklist">
+    <title>Property Inspection Checklist</title>
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlByb3BlcnR5IEluc3BlY3Rpb24gQ2hlY2tsaXN0IiwKICAic2hvcnRfbmFtZSI6ICJQcm9wZXJ0eSBDaGVjayIsCiAgInN0YXJ0X3VybCI6ICIuL2luZGV4Lmh0bWwiLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiMzNDk4ZGIiLAogICJ0aGVtZV9jb2xvciI6ICIjMzQ5OGRiIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiZGF0YTppbWFnZS9zdmcreG1sO2Jhc2U2NCxQSE4yWnlCNGJXeHVjejBpYUhSMGNEb3ZMM2QzZHk1M015NXZjbWN2TWpBd01DOXpkbWNpSUhacFpYZENiM2c5SWpBZ01DQXpNREFnTXpBd0lpQjJhV1YzUW05NFBTSXdJREFnTXpBd0lETXdNQ0krQ2lBZ1BISmxZM1FnZDJsa2RHZzlJalV3TUNJZ2FHVnBaMmgwUFNJMU1EQWlJR1pwYkd3OUltNXZibVVpSUhOMGVXeGxQU0ptYVd4c09pTXpORGswT0dRN0lpQm1hV3hzTFhKMWJHVTlJbVZ5Ym1WMmFXUmxjaUkrQ2lBZ0lDQThZU0J6ZEhsc1pUMGlZbUZqYTJkeWIzVnVaRG9qTXpRNU9EUmlPeUlnZUQwaU16QXdJaUI1UFNJME1DSStQQzloUGdvZ0lEd3ZjbVZqZEQ0S1BDOW5QZz09IiwKICAgICAgInNpemVzIjogIjMwMHgzMDAiLAogICAgICAidHlwZSI6ICJpbWFnZS9zdmcreG1sIgogICAgfQogIF0KfQ==">
+    <style>
+        /* Previous CSS styles remain the same */
+        .photo-preview {
+            max-width: 100%;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #2ecc71;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            transform: translateY(100%);
+            transition: transform 0.3s;
+        }
+        .status-bar.show {
+            transform: translateY(0);
+        }
+        .offline-banner {
+            background: #e74c3c;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            display: none;
+        }
+        /* Previous CSS styles here */
+    </style>
+</head>
+<body>
+    <div id="offline-banner" class="offline-banner">
+        You're offline - data will be saved locally
+    </div>
+    <!-- Previous HTML content remains the same -->
+    <div id="status-bar" class="status-bar">Data saved successfully</div>
+
+    <script>
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(function(registration) {
+                console.log('ServiceWorker registration successful');
+            }).catch(function(err) {
+                console.log('ServiceWorker registration failed: ', err);
+            });
+        }
+
+        // Offline detection
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
+        function updateOnlineStatus() {
+            const banner = document.getElementById('offline-banner');
+            if (navigator.onLine) {
+                banner.style.display = 'none';
+                syncData();
+            } else {
+                banner.style.display = 'block';
+            }
+        }
+
+        // Photo handling
+        document.querySelectorAll('.photo-button').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.preventDefault();
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    
+                    // Create photo preview element
+                    const photoPreview = document.createElement('img');
+                    photoPreview.classList.add('photo-preview');
+                    button.parentNode.appendChild(photoPreview);
+                    
+                    // Take photo after video starts playing
+                    video.onloadedmetadata = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        canvas.getContext('2d').drawImage(video, 0, 0);
+                        photoPreview.src = canvas.toDataURL('image/jpeg');
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    video.play();
+                } catch (err) {
+                    alert('Camera access denied or error: ' + err);
+                }
+            });
+        });
+
+        // Auto-save functionality
+        let saveTimeout;
+        const formElements = document.querySelectorAll('input, textarea');
+        formElements.forEach(element => {
+            element.addEventListener('input', () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(saveData, 1000);
+            });
+        });
+
+        function saveData() {
+            const formData = {};
+            formElements.forEach(element => {
+                formData[element.id || element.name || element.placeholder] = element.value;
+            });
+            
+            // Save to localStorage
+            localStorage.setItem('propertyInspectionData', JSON.stringify(formData));
+            
+            // Show success message
+            const statusBar = document.getElementById('status-bar');
+            statusBar.classList.add('show');
+            setTimeout(() => statusBar.classList.remove('show'), 2000);
+        }
+
+        // Load saved data
+        function loadSavedData() {
+            const savedData = localStorage.getItem('propertyInspectionData');
+            if (savedData) {
+                const formData = JSON.parse(savedData);
+                Object.entries(formData).forEach(([key, value]) => {
+                    const element = document.querySelector(`[id="${key}"], [name="${key}"], [placeholder="${key}"]`);
+                    if (element) element.value = value;
+                });
+            }
+        }
+
+        // Export data
+        document.querySelector('.save-button').addEventListener('click', () => {
+            const formData = {};
+            formElements.forEach(element => {
+                formData[element.id || element.name || element.placeholder] = element.value;
+            });
+            
+            const dataStr = JSON.stringify(formData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportName = `property-inspection-${new Date().toISOString().split('T')[0]}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportName);
+            linkElement.click();
+        });
+
+        // Initialize
+        loadSavedData();
+        updateOnlineStatus();
+    </script>
+</body>
+</html>
